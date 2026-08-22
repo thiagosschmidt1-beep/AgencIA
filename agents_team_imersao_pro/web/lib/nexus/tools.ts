@@ -1,0 +1,489 @@
+import "server-only";
+import type Anthropic from "@anthropic-ai/sdk";
+import { db } from "@/lib/db/client";
+import { rateLimiters, enforceLimit } from "@/lib/ratelimit";
+
+/**
+ * Tools the Nexus assistant can call. The data tools run parameterized SELECTs
+ * and return plain JSON. The write tools (request_campaign_creation,
+ * request_campaign_activation, request_analysis) do NOT touch the Meta API
+ * directly — they only enqueue a job into `agent_jobs` for the Fly.io runner to
+ * execute. The skill name is resolved server-side from a fixed allowlist below
+ * (never free-form user text), and the campaign write tools require an explicit
+ * two-turn confirmation (see prompt.ts).
+ */
+
+type ToolHandler = (input: Record<string, unknown>) => Promise<unknown>;
+
+type ToolDef = {
+  spec: Anthropic.Tool;
+  handler: ToolHandler;
+};
+
+// Fixed server-side allowlist: spoken client slug -> the exact skill the runner may
+// execute. A client absent from a map simply cannot trigger that action. This is the
+// key control that keeps the write tools from becoming a "run any skill" primitive.
+const ENABLED_SLUGS = [
+  "brasdente",
+  "bombapatch",
+  "bpure",
+  "cardsofparadise",
+  "clorin",
+  "coutinho",
+  "dolcevivere",
+  "lulibaby",
+  "originalflex",
+  "piemon",
+  "armando",
+  "cliente-exemplo",
+] as const;
+
+const CREATE_SKILL_BY_SLUG: Record<string, string> = Object.fromEntries(
+  ENABLED_SLUGS.map((slug) => [slug, "create-traffic-campaign"]),
+);
+const ACTIVATE_SKILL_BY_SLUG: Record<string, string> = Object.fromEntries(
+  ENABLED_SLUGS.map((slug) => [slug, "activate-campaign"]),
+);
+const ANALYZE_SKILL_BY_SLUG: Record<string, string> = Object.fromEntries(
+  ENABLED_SLUGS.map((slug) => [slug, "funnel-analytics-campaign"]),
+);
+
+function str(input: Record<string, unknown>, key: string): string | undefined {
+  const v = input[key];
+  return typeof v === "string" && v.length > 0 ? v : undefined;
+}
+
+type ResolvedClient = { id: string; name: string; currency: string; daily_budget_cap_cents: number };
+
+async function resolveClientId(slug: string): Promise<ResolvedClient | null> {
+  const { data } = await db()
+    .from("clients")
+    .select("id, name, currency, daily_budget_cap_cents")
+    .eq("slug", slug)
+    .maybeSingle();
+  return data ?? null;
+}
+
+// supabase-js surfaces a Postgres unique-violation as code 23505. Our partial unique
+// index (agent_jobs_one_active_per_kind) raises it when a job of the same kind is
+// already in flight for the client — i.e. a duplicate/misheard trigger.
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
+}
+
+const tools: Record<string, ToolDef> = {
+  list_clients: {
+    spec: {
+      name: "list_clients",
+      description: "Lista todos os clientes (infoprodutores) gerenciados, com slug e nome.",
+      input_schema: { type: "object", properties: {} },
+    },
+    handler: async () => {
+      const { data, error } = await db()
+        .from("clients")
+        .select("slug, name, currency, daily_budget_cap_cents")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  },
+
+  get_client_overview: {
+    spec: {
+      name: "get_client_overview",
+      description:
+        "Visão geral de um cliente: dados da conta e lista de campanhas com status e orçamento. Use o slug do cliente.",
+      input_schema: {
+        type: "object",
+        properties: { client_slug: { type: "string", description: "slug do cliente, ex.: cliente-exemplo" } },
+        required: ["client_slug"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const { data, error } = await db()
+        .from("campaigns")
+        .select("name, objective, budget_mode, daily_budget_cents, status, meta_campaign_id, created_at")
+        .eq("client_id", client.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return { client_slug: slug, currency: client.currency, campaigns: data ?? [] };
+    },
+  },
+
+  get_campaign_metrics: {
+    spec: {
+      name: "get_campaign_metrics",
+      description:
+        "Métricas da análise mais recente de um cliente (CPLPV north-star, CTR, CPC, CPM, frequência, gasto) por entidade. Sempre cruze ao menos 2 métricas ao interpretar — nunca uma isolada.",
+      input_schema: {
+        type: "object",
+        properties: { client_slug: { type: "string" } },
+        required: ["client_slug"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const { data: analysis } = await db()
+        .from("analyses")
+        .select("id, overall_verdict, window_start, window_stop, created_at")
+        .eq("client_id", client.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!analysis) return { client_slug: slug, note: "nenhuma análise de performance ainda" };
+      const { data: snapshots, error } = await db()
+        .from("metric_snapshots")
+        .select(
+          "level, entity_name, impressions, spend_cents, ctr, cpc_cents, cpm_cents, cplpv_cents, frequency, link_clicks, landing_page_views",
+        )
+        .eq("analysis_id", analysis.id)
+        .order("spend_cents", { ascending: false });
+      if (error) throw error;
+      return { client_slug: slug, currency: client.currency, analysis, snapshots: snapshots ?? [] };
+    },
+  },
+
+  get_latest_analysis: {
+    spec: {
+      name: "get_latest_analysis",
+      description:
+        "Veredito e diagnósticos (findings) da análise mais recente de um cliente: severidade, diagnóstico relacional e ação recomendada.",
+      input_schema: {
+        type: "object",
+        properties: { client_slug: { type: "string" } },
+        required: ["client_slug"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const { data: analysis } = await db()
+        .from("analyses")
+        .select("id, overall_verdict, summary, created_at")
+        .eq("client_id", client.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!analysis) return { client_slug: slug, note: "nenhuma análise ainda" };
+      const { data: findings, error } = await db()
+        .from("analysis_findings")
+        .select("severity, metric_focus, diagnosis, recommended_action, recommendation_type, confidence, entity_name")
+        .eq("analysis_id", analysis.id);
+      if (error) throw error;
+      return { client_slug: slug, analysis, findings: findings ?? [] };
+    },
+  },
+
+  get_recent_actions: {
+    spec: {
+      name: "get_recent_actions",
+      description:
+        "Ações recentes dos agents (create/update/pause/activate) a partir do log de operações. Filtra por cliente se informado.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string", description: "opcional" },
+          limit: { type: "number", description: "padrão 20, máximo 50" },
+        },
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      const rawLimit = typeof input.limit === "number" ? input.limit : 20;
+      const limit = Math.min(Math.max(1, rawLimit), 50);
+      let query = db()
+        .from("operation_logs")
+        .select("entity_type, action, summary, actor, created_at")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (slug) {
+        const client = await resolveClientId(slug);
+        if (!client) return { error: `cliente '${slug}' não encontrado` };
+        query = query.eq("client_id", client.id);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data ?? [];
+    },
+  },
+
+  request_campaign_creation: {
+    spec: {
+      name: "request_campaign_creation",
+      description:
+        "Enfileira a CRIAÇÃO de uma nova campanha de tráfego para um cliente (os agents rodam na VM). A campanha nasce PAUSED (sem gasto). FLUXO OBRIGATÓRIO: chame primeiro com confirm=false para obter os detalhes, leia-os ao operador e peça confirmação; só chame com confirm=true após um 'sim' explícito.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string", description: "slug do cliente, ex.: cliente-exemplo" },
+          confirm: {
+            type: "boolean",
+            description: "false = apenas devolve os detalhes para confirmar; true = enfileira de fato (use só após o operador confirmar)",
+          },
+        },
+        required: ["client_slug", "confirm"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      const confirm = input.confirm === true;
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const skill = CREATE_SKILL_BY_SLUG[slug];
+      if (!skill) return { error: `cliente '${slug}' não está habilitado para criação automática de campanha` };
+
+      if (!confirm) {
+        return {
+          confirmation_required: true,
+          action: "criar campanha de tráfego",
+          client: client.name,
+          client_slug: slug,
+          daily_budget_cents: client.daily_budget_cap_cents,
+          currency: client.currency,
+          note: "A campanha nasce PAUSED (gasto zero até ser ativada). Confirme com o operador antes de chamar com confirm=true.",
+        };
+      }
+
+      const { allowed } = await enforceLimit(rateLimiters.campaignCreation(), slug, "campaign-creation");
+      if (!allowed) return { error: "muitos pedidos de criação para este cliente agora; tente de novo daqui a pouco" };
+
+      const { data, error } = await db()
+        .from("agent_jobs")
+        .insert({
+          client_id: client.id,
+          skill,
+          kind: "create",
+          args: { client_slug: slug, "budget-cents": client.daily_budget_cap_cents },
+          requested_by: "nexus",
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (isUniqueViolation(error)) {
+          return { enqueued: false, reason: "já existe um pedido de criação em andamento para este cliente" };
+        }
+        throw error;
+      }
+      return {
+        enqueued: true,
+        job_id: data.id,
+        skill,
+        kind: "create",
+        client_slug: slug,
+        queued_at: new Date().toISOString(),
+        message: "Pedido de criação enfileirado. Os agents começam em até um minuto; a campanha vai nascer pausada.",
+      };
+    },
+  },
+
+  request_campaign_activation: {
+    spec: {
+      name: "request_campaign_activation",
+      description:
+        "Enfileira a ATIVAÇÃO de uma campanha existente (coloca no ar — começa o GASTO REAL). Só ativa campanhas PAUSED dentro do teto de orçamento do cliente. Use get_client_overview para achar o campaign_meta_id. FLUXO OBRIGATÓRIO: chame com confirm=false, releia nome e orçamento ao operador avisando que é gasto real, e só chame com confirm=true após um 'sim' explícito.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string", description: "slug do cliente, ex.: cliente-exemplo" },
+          campaign_meta_id: { type: "string", description: "id da campanha na Meta (meta_campaign_id), obtido via get_client_overview" },
+          confirm: {
+            type: "boolean",
+            description: "false = apenas devolve os detalhes para confirmar; true = enfileira a ativação (use só após o operador confirmar)",
+          },
+        },
+        required: ["client_slug", "campaign_meta_id", "confirm"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      const campaignMetaId = str(input, "campaign_meta_id");
+      const confirm = input.confirm === true;
+      if (!slug) return { error: "client_slug é obrigatório" };
+      if (!campaignMetaId) return { error: "campaign_meta_id é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const skill = ACTIVATE_SKILL_BY_SLUG[slug];
+      if (!skill) return { error: `cliente '${slug}' não está habilitado para ativação automática` };
+
+      const { data: campaign } = await db()
+        .from("campaigns")
+        .select("name, status, daily_budget_cents, meta_campaign_id")
+        .eq("client_id", client.id)
+        .eq("meta_campaign_id", campaignMetaId)
+        .maybeSingle();
+      if (!campaign) return { error: `campanha ${campaignMetaId} não encontrada para o cliente '${slug}'` };
+      if (campaign.status === "ACTIVE") return { error: `a campanha '${campaign.name}' já está ativa` };
+      if (campaign.status !== "PAUSED") {
+        return { error: `a campanha '${campaign.name}' está em status ${campaign.status}; só ativo campanhas PAUSED` };
+      }
+      const budget = campaign.daily_budget_cents;
+      if (budget != null && budget > client.daily_budget_cap_cents) {
+        return {
+          error: `o orçamento da campanha (${budget} cents/dia) excede o teto do cliente (${client.daily_budget_cap_cents} cents/dia); não vou ativar`,
+        };
+      }
+
+      if (!confirm) {
+        return {
+          confirmation_required: true,
+          action: "ATIVAR campanha — começa o gasto real",
+          client: client.name,
+          campaign: campaign.name,
+          campaign_meta_id: campaignMetaId,
+          daily_budget_cents: budget,
+          currency: client.currency,
+          warning:
+            "Ao confirmar, a campanha vai ao ar e passa a gastar de verdade. Releia nome e orçamento ao operador e só chame com confirm=true após um 'sim' explícito.",
+        };
+      }
+
+      const { allowed } = await enforceLimit(rateLimiters.campaignActivation(), slug, "campaign-activation");
+      if (!allowed) return { error: "muitos pedidos de ativação para este cliente agora; tente de novo daqui a pouco" };
+
+      const { data, error } = await db()
+        .from("agent_jobs")
+        .insert({
+          client_id: client.id,
+          skill,
+          kind: "activate",
+          args: { client_slug: slug, campaign_meta_id: campaignMetaId },
+          requested_by: "nexus",
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (isUniqueViolation(error)) {
+          return { enqueued: false, reason: "já existe um pedido de ativação em andamento para este cliente" };
+        }
+        throw error;
+      }
+      return {
+        enqueued: true,
+        job_id: data.id,
+        skill,
+        kind: "activate",
+        client_slug: slug,
+        queued_at: new Date().toISOString(),
+        message: "Pedido de ativação enfileirado. A campanha vai ao ar em instantes.",
+      };
+    },
+  },
+
+  request_analysis: {
+    spec: {
+      name: "request_analysis",
+      description:
+        "Enfileira uma ANÁLISE DE PERFORMANCE sob demanda de todas as campanhas ativas de um cliente (os agents rodam na VM). É READ-ONLY na conta Meta — não cria, não ativa, não gasta nada; só lê métricas e grava diagnóstico + recomendações no banco. Não precisa de confirmação em dois passos. A análise leva alguns minutos; depois consulte o resultado com get_latest_analysis (e o andamento com get_recent_jobs). A mesma análise também roda sozinha todo dia às 8h.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string", description: "slug do cliente, ex.: cliente-exemplo" },
+        },
+        required: ["client_slug"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const skill = ANALYZE_SKILL_BY_SLUG[slug];
+      if (!skill) return { error: `cliente '${slug}' não está habilitado para análise sob demanda` };
+
+      const { allowed } = await enforceLimit(rateLimiters.analysisRequest(), slug, "analysis-request");
+      if (!allowed) return { error: "muitos pedidos de análise para este cliente agora; tente de novo daqui a pouco" };
+
+      const { data, error } = await db()
+        .from("agent_jobs")
+        .insert({
+          client_id: client.id,
+          skill,
+          kind: "analyze",
+          args: { client_slug: slug },
+          requested_by: "nexus",
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (isUniqueViolation(error)) {
+          return { enqueued: false, reason: "já existe uma análise em andamento para este cliente" };
+        }
+        throw error;
+      }
+      return {
+        enqueued: true,
+        job_id: data.id,
+        skill,
+        kind: "analyze",
+        client_slug: slug,
+        queued_at: new Date().toISOString(),
+        message:
+          "Análise enfileirada. Os agents começam em até um minuto e levam alguns minutos; depois é só pedir o resultado (get_latest_analysis).",
+      };
+    },
+  },
+
+  get_recent_jobs: {
+    spec: {
+      name: "get_recent_jobs",
+      description:
+        "Estado dos pedidos recentes que o Nexus enfileirou para a VM (criação/ativação): status, erro e horários. Use para responder 'começou?', 'terminou?', 'deu certo?'. Filtra por cliente se informado.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string", description: "opcional" },
+          limit: { type: "number", description: "padrão 10, máximo 25" },
+        },
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      const rawLimit = typeof input.limit === "number" ? input.limit : 10;
+      const limit = Math.min(Math.max(1, rawLimit), 25);
+      let query = db()
+        .from("agent_jobs")
+        .select("kind, skill, status, error, exit_code, created_at, started_at, finished_at")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (slug) {
+        const client = await resolveClientId(slug);
+        if (!client) return { error: `cliente '${slug}' não encontrado` };
+        query = query.eq("client_id", client.id);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data ?? [];
+    },
+  },
+
+};
+
+export const toolSpecs: Anthropic.Tool[] = Object.values(tools).map((t) => t.spec);
+
+export async function runTool(name: string, input: Record<string, unknown>): Promise<unknown> {
+  const tool = tools[name];
+  if (!tool) return { error: `tool desconhecida: ${name}` };
+  try {
+    return await tool.handler(input);
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "nexus_tool_error",
+        tool: name,
+        message: err instanceof Error ? err.message : "unknown",
+      }),
+    );
+    return { error: "falha ao consultar os dados" };
+  }
+}

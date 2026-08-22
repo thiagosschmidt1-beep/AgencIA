@@ -1,0 +1,9 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.vercel
+.DS_Store
+client_secret_524199054978-848c74uhnevrj6hroun76lfqvrvej70o.apps.googleusercontent.com.json
+.env.local

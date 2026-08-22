@@ -1,0 +1,68 @@
+{
+  "client": "cliente-exemplo",
+  "slug": "curso-exemplo",
+  "name": "Curso Exemplo",
+  "shortCode": "CURSO",
+  "tagline": "Aprenda <a transformação principal> em <prazo>, do zero ao avançado.",
+  "positioning": "Curso online pt-BR para <persona> que querem <resultado desejado>.",
+  "tone": ["didático", "direto", "confiante"],
+  "offer": {
+    "priceCents": 49700,
+    "anchorPriceCents": 99700,
+    "checkoutUrl": "https://pay.example.com/curso-exemplo",
+    "waitlistUrl": "mailto:<OPERATOR_EMAIL>?subject=Lista%20de%20espera%20Curso%20Exemplo",
+    "cartState": "open",
+    "deadline": null,
+    "payments": "à vista no PIX ou em até 12x no cartão",
+    "guarantee": "7 dias de garantia incondicional — reembolso 100% via email para <OPERATOR_EMAIL>.",
+    "scarcity": "Turma limitada a <N> alunos."
+  },
+  "dores": [
+    "Dor 1 que o público sente hoje.",
+    "Dor 2 que o público sente hoje.",
+    "Dor 3 que o público sente hoje."
+  ],
+  "mecanismo": "Explique em 1-2 frases o método/mecanismo único que entrega o resultado.",
+  "stack": ["Tópico/módulo 1", "Tópico/módulo 2", "Tópico/módulo 3"],
+  "prereqs": ["Pré-requisito 1 (ou 'nenhum')"],
+  "agenda": [
+    { "titulo": "Módulo 1 — Fundamentos", "itens": ["Aula 1.1", "Aula 1.2"] },
+    { "titulo": "Módulo 2 — Prática", "itens": ["Aula 2.1", "Aula 2.2"] }
+  ],
+  "entregaveis": ["Acesso vitalício", "Certificado", "Comunidade", "Materiais de apoio"],
+  "persona": {
+    "quem": "Descreva o aluno ideal.",
+    "objetivo": "O que ele quer alcançar.",
+    "objecoes": ["Não tenho tempo", "É caro", "Será que funciona pra mim?"]
+  },
+  "comparison": {
+    "alternativaComum": "O que as pessoas tentam hoje (e por que falha).",
+    "porQueEsteResolve": "Por que este produto resolve de verdade."
+  },
+  "autoridade": {
+    "name": "Nome do Instrutor",
+    "bio": "1-2 frases de credencial/autoridade do instrutor.",
+    "credentials": ["Credencial 1", "Credencial 2"]
+  },
+  "numeros": [
+    { "valor": "+1.000", "label": "alunos formados" },
+    { "valor": "4,9/5", "label": "avaliação média" }
+  ],
+  "faqHints": [
+    "Por quanto tempo tenho acesso?",
+    "Serve para iniciantes?",
+    "Como funciona a garantia?"
+  ],
+  "seo": {
+    "title": "Curso Exemplo — <benefício principal>",
+    "description": "Descrição SEO de até 155 caracteres com a promessa central do curso."
+  },
+  "assets": {
+    "logo": ".claude/materiais-das-empresas/cliente-exemplo/logo/logo.png",
+    "instructorPhoto": ".claude/materiais-das-empresas/cliente-exemplo/logo/foto-do-infoprodutor/instrutor.png"
+  },
+  "brand": {
+    "colors": { "primary": "#0A0F1A", "accent": "#FF6B1A", "bg": "#0E1422" },
+    "notes": "Ajuste a paleta para a marca do seu cliente."
+  }
+}

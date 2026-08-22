@@ -1,0 +1,43 @@
+# supercronic crontab for meta-ads-agents
+# Container TZ is America/Sao_Paulo (set in Dockerfile + fly.toml).
+# Format: m h dom mon dow command
+#
+# Generic skills accept client_slug=<slug> as argument.
+# Analytics run at 08:00 BRT; campaign creation at 10:00 BRT (staggered by minutes).
+# On-demand jobs run every minute via poll-agent-jobs.sh.
+
+# ── Daily funnel analytics (read-only, all active campaigns) ───────────────────
+0  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=brasdente
+1  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=bombapatch
+2  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=bpure
+3  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=cardsofparadise
+4  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=clorin
+5  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=coutinho
+6  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=dolcevivere
+7  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=lulibaby
+8  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=originalflex
+9  8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=piemon
+10 8 * * * /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=armando
+
+# ── Daily traffic campaign creation (all born PAUSED — no spend) ───────────────
+0  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=brasdente
+1  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=bombapatch
+2  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=bpure
+3  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=cardsofparadise
+4  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=clorin
+5  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=coutinho
+6  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=dolcevivere
+7  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=lulibaby
+8  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=originalflex
+9  10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=piemon
+10 10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=armando
+# ── Piemon: múltiplos tipos de campanha (escalonados, um por minuto) ───────────
+11 10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=piemon campaign_type=AWARENESS
+12 10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=piemon campaign_type=TRAFFIC_WHATSAPP whatsapp=5569840811139 angle=vagas
+13 10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=piemon campaign_type=TRAFFIC_WHATSAPP whatsapp=5569999637440 angle=ofertas
+14 10 * * * /app/scripts/run-skill.sh create-traffic-campaign client_slug=piemon campaign_type=TRAFFIC_INSTAGRAM
+
+# ── On-demand job queue (Nexus → agent_jobs → runner) ─────────────────────────
+# Every minute: claim one pending job enqueued by the Nexus dashboard.
+# Single-flight via mkdir lock — see scripts/poll-agent-jobs.sh and ADR 0009.
+* * * * * /app/scripts/poll-agent-jobs.sh

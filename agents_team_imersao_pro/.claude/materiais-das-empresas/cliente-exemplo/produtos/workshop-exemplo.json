@@ -1,0 +1,67 @@
+{
+  "client": "cliente-exemplo",
+  "slug": "workshop-exemplo",
+  "name": "Workshop Exemplo",
+  "shortCode": "WORKSHOP",
+  "tagline": "Workshop ao vivo: <transformação> em <N> horas.",
+  "positioning": "Workshop ao vivo (com gravação) para <persona> que querem <resultado> rápido.",
+  "tone": ["energético", "prático", "urgente"],
+  "offer": {
+    "priceCents": 14700,
+    "anchorPriceCents": 49700,
+    "checkoutUrl": "https://pay.example.com/workshop-exemplo",
+    "waitlistUrl": "mailto:<OPERATOR_EMAIL>?subject=Lista%20de%20espera%20Workshop%20Exemplo",
+    "cartState": "open",
+    "deadline": "2099-12-31T23:59:00-03:00",
+    "payments": "à vista no PIX ou no cartão",
+    "guarantee": "7 dias de garantia — reembolso 100% via email para <OPERATOR_EMAIL>.",
+    "scarcity": "1º lote com preço promocional, vagas limitadas."
+  },
+  "dores": [
+    "Dor aguda 1 do público.",
+    "Dor aguda 2 do público."
+  ],
+  "mecanismo": "O atalho/método que o workshop entrega ao vivo.",
+  "stack": ["Bloco 1", "Bloco 2", "Bloco 3"],
+  "prereqs": ["Nenhum"],
+  "agenda": [
+    { "titulo": "Hora 1 — Diagnóstico", "itens": ["Tópico A", "Tópico B"] },
+    { "titulo": "Hora 2 — Mão na massa", "itens": ["Tópico C", "Tópico D"] }
+  ],
+  "entregaveis": ["Gravação do workshop", "Templates", "Certificado de participação"],
+  "persona": {
+    "quem": "Descreva o participante ideal.",
+    "objetivo": "O resultado que ele busca no curto prazo.",
+    "objecoes": ["Não posso ao vivo", "Será que aplico no meu caso?"]
+  },
+  "comparison": {
+    "alternativaComum": "O que tentam hoje e por que trava.",
+    "porQueEsteResolve": "Por que o formato ao vivo destrava."
+  },
+  "autoridade": {
+    "name": "Nome do Instrutor",
+    "bio": "Credencial curta do instrutor do workshop.",
+    "credentials": ["Credencial 1", "Credencial 2"]
+  },
+  "numeros": [
+    { "valor": "+500", "label": "participantes" },
+    { "valor": "5h", "label": "ao vivo" }
+  ],
+  "faqHints": [
+    "Vou receber a gravação?",
+    "Preciso participar ao vivo?",
+    "Tem garantia?"
+  ],
+  "seo": {
+    "title": "Workshop Exemplo — <benefício>",
+    "description": "Descrição SEO de até 155 caracteres com a promessa do workshop."
+  },
+  "assets": {
+    "logo": ".claude/materiais-das-empresas/cliente-exemplo/logo/logo.png",
+    "instructorPhoto": ".claude/materiais-das-empresas/cliente-exemplo/logo/foto-do-infoprodutor/instrutor.png"
+  },
+  "brand": {
+    "colors": { "primary": "#0A0F1A", "accent": "#FF6B1A", "bg": "#0E1422" },
+    "notes": "Ajuste a paleta para a marca do seu cliente."
+  }
+}
