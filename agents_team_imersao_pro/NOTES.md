@@ -1,7 +1,7 @@
 # NOTES.md — Agência de Agents Meta Ads (agents_team_imersao_pro)
 
 > Arquivo vivo. Atualizar após cada sessão de implementação antes de compactar.
-> Última atualização: 2026-08-23 (sessão 3)
+> Última atualização: 2026-08-29 (sessão 5)
 
 ---
 
@@ -21,43 +21,38 @@ C:\Users\User\Desktop\Projetos IA\AgencI.A\agents_team_imersao_pro
 - Clientes removidos: firebull, popular, daniele-melo, dpo-board ✅
 - GitHub: projeto `AgencIA` criado e código pushed ✅
 - EasyPanel (DigitalOcean): runner `meta-ads-runner` deployado no projeto `agencia-ia` ✅
-- Variáveis de ambiente configuradas no EasyPanel ✅
+- Variáveis de ambiente corrigidas no EasyPanel (sessão 5) ✅
 - Runner rodando: supercronic ativo, poll-agent-jobs.sh executando a cada minuto ✅
+- Facebook Page IDs e default_landing_url populados no Supabase via SQL (sessão 5) ✅
+- `funnel-analytics-campaign` aprimorado: consulta histórico de findings 30 dias antes de diagnosticar (commit `cb68256`) ✅
 
 **O que falta — em ordem:**
 
-1. **Corrigir token do Meta Ads MCP** (PRÓXIMO A FAZER — travou aqui)
-   - O token configurado retornou HTTP 401
-   - Ir na Vercel → projeto `meta-ads-mcp` → Settings → Environment Variables → copiar `MCP_AUTH_TOKEN` exato
-   - No console do EasyPanel (bash do container):
-     ```bash
-     claude mcp remove meta-ads
-     claude mcp add --transport http meta-ads 'https://meta-ads-mcp-xi.vercel.app/mcp' --header 'Authorization: Bearer TOKEN_CORRETO'
-     ```
-   - Verificar com `claude` → `/mcp` → meta-ads deve aparecer como `✔ connected`
+1. **⚠️ PENDENTE — Autenticar Claude no runner após cada redeploy**
+   - Cada redeploy do EasyPanel apaga as credenciais OAuth do Claude
+   - Após redeploy: abrir Console → bash → executar `claude` → autenticar MCPs (Supabase + Meta Ads)
+   - Depois sair com `/exit` e testar a skill
 
-2. **Volume persistente** para `/home/runner/.claude`
-   - As credenciais do Claude e config do MCP ficam em `/home/runner/.claude.json`
-   - Verificar no EasyPanel se há volume montado nesse path
-   - Sem volume, tudo se perde ao reiniciar o container
-
-3. **Confirmar buckets Supabase** (`ad-ingest` público + `creatives` privado)
-
-4. **Deploy dashboard** na Vercel (pasta `web/`)
-
-5. **Testar** skill manualmente via console do EasyPanel:
+2. **Testar** skill manualmente via console do EasyPanel:
    ```bash
    /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=lulibaby
    ```
 
-6. **Testar** via Nexus voice: "analise a performance da lulibaby"
+3. **Testar** via Nexus voice: "analise a performance da lulibaby"
 
 **Contexto do runner (EasyPanel):**
 - Projeto: `agencia-ia` → serviço: `meta-ads-runner`
 - Console: EasyPanel → serviço → aba Console → bash
 - Supabase MCP: ✅ conectado
-- Meta Ads MCP: ❌ token inválido (HTTP 401) — corrigir no próximo passo
+- Meta Ads MCP: ✅ token correto (`META_ADS_MCP_TOKEN` configurado no EasyPanel)
+- `entrypoint.sh`: configura MCP automaticamente ao iniciar
 - URL Meta Ads MCP: `https://meta-ads-mcp-xi.vercel.app/mcp`
+- ⚠️ Env vars EasyPanel: `ANTHROPIC_API_KEY` e `OPENAI_API_KEY` agora corretas (sessão 5 — estavam corrompidas por formatação errada)
+
+**Problema recorrente — jq syntax error:**
+- Aparece no início e fim de cada run mas não bloqueia a execução
+- É cosmético — versão do `jq` no container não suporta a sintaxe usada no `emit-from-stream.py`
+- Pode corrigir em sessão futura se necessário
 
 ---
 
@@ -248,12 +243,20 @@ O Nexus (assistente de voz) tem acesso a 8 tools server-side:
 ✅ `web/lib/nexus/tools.ts` atualizado: ENABLED_SLUGS com todos os 15 clientes
 ✅ `crontab` atualizado: 30 entradas (15 analytics + 15 create, escalonadas por minuto)
 ✅ Pastas `.claude/materiais-das-empresas/<slug>/` criadas para todos os 15 clientes
-✅ Runner Fly.io (Dockerfile, crontab, scripts)
+✅ Runner EasyPanel (Dockerfile, crontab, scripts) — deploy ativo
 ✅ Schema Supabase com todas as migrations aplicadas
 ✅ Fila agent_jobs com claim atômico (RPC claim_agent_job)
 ✅ Documentação completa (ADRs 0001-0025, how-tos, tutorials, specs)
 ✅ Rate limiting nas APIs (login, nexus STT/chat/TTS, criação/ativação)
 ✅ Telemetria de tool calls (emit-from-stream.py → agent_events)
+✅ Buckets Supabase criados: `ad-ingest` (público) e `creatives` (privado)
+✅ Dashboard deployado na Vercel — login funcionando
+✅ `entrypoint.sh` atualizado: configura meta-ads MCP via `META_ADS_MCP_TOKEN` automaticamente
+✅ `app/layout.tsx` raiz criado (fix Next.js build)
+✅ Facebook Page IDs populados no Supabase para todos os 11 clientes ativos (sessão 5)
+✅ `default_landing_url` populado no Supabase para clientes com tráfego para site (sessão 5)
+✅ Env vars EasyPanel corrigidas: `ANTHROPIC_API_KEY` e `OPENAI_API_KEY` sem corrupção (sessão 5)
+✅ `funnel-analytics-campaign`: histórico de recomendações consultado antes de diagnosticar — evita repetir sugestões sem resultado (commit `cb68256`, sessão 5)
 
 ---
 
