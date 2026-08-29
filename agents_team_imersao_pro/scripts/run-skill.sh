@@ -16,6 +16,7 @@ shift || true
 SKILL_DIR="/app/.claude/skills/${SKILL}"
 CLAUDE_CRED="/home/runner/.claude/.credentials.json"
 RUN_TIMEOUT_SEC="${RUN_TIMEOUT_SEC:-1500}"
+CLAUDE_MODEL="${CLAUDE_MODEL:-claude-haiku-4-5-20251001}"
 
 PROMPT=".claude/skills/${SKILL}"
 if [[ $# -gt 0 ]]; then
@@ -109,6 +110,7 @@ echo "RUN_START skill=${SKILL} prompt='${PROMPT}' log=${LOG} ts=${TS} timeout=${
 export AGENT_EVENTS_FROM_STREAM=1
 set +e
 timeout "${RUN_TIMEOUT_SEC}" claude -p --dangerously-skip-permissions \
+  --model "${CLAUDE_MODEL}" \
   --output-format stream-json --verbose \
   "${PROMPT}" 2>&1 \
   | python3 /app/scripts/emit-from-stream.py \
