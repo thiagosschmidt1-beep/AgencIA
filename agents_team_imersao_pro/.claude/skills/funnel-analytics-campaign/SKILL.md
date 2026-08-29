@@ -99,7 +99,17 @@ set -a && eval "$(tr -d '\r' < .env.local)" && set +a
 
 ### Passo 1 — Resolver cliente (ver §2 acima)
 
-### Passo 2 — Coletar campanhas ativas
+### Passo 2 — Verificar gasto ativo e coletar campanhas
+
+**2.1 — Checar gasto nos últimos 7 dias (guard de custo):**
+Use `metricas` (ou `get_insights`) para `act_<ad_account_id>` com `date_preset=last_7d`, campo `spend`.
+- Se `spend == 0` ou ausente → a conta não teve gasto na semana.
+  - Grave `analyses` com `overall_verdict='no_data'`, `summary='Sem gasto nos últimos 7 dias — análise pulada.'`
+  - Grave `operation_logs` com `action='analyze'`, `summary='Pulado: sem gasto nos últimos 7 dias'`
+  - **Finalize aqui.** Não rode análise completa — evita custo desnecessário.
+- Se `spend > 0` → prossiga normalmente.
+
+**2.2 — Coletar campanhas ativas:**
 Use `list_campaigns` para `act_<ad_account_id>`, filtrando `effective_status=ACTIVE`.
 Se nenhuma campanha ativa: grave `analyses` com `overall_verdict='no_data'` e finalize.
 
