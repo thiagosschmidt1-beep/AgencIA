@@ -155,7 +155,11 @@ Use o resultado para guiar o diagnóstico (Passo 5) com as seguintes regras:
 - Classifique severidade (§3.3)
 - Aplique as regras do histórico (§4.5) antes de formular cada `recommended_action`
 - Gere `recommended_action` concreto (pausa, ajuste orçamento, novo criativo, etc.)
-- Derive `overall_verdict`: `excellent` | `good` | `attention` | `critical` | `no_data` | `error`
+- Derive `overall_verdict`: `healthy` | `watch` | `underperforming` | `learning` | `no_data` | `error`
+  - `healthy` → tudo dentro dos benchmarks, north-star saudável
+  - `watch` → 1-2 métricas fora do benchmark, atenção requerida
+  - `underperforming` → north-star crítico (>2× benchmark) ou orçamento drenado sem resultado
+  - `learning` → campanha nova (<7 dias) ainda em fase de aprendizado
 
 ### Passo 6 — Persistir no Supabase (via MCP `execute_sql`)
 
@@ -183,15 +187,30 @@ INSERT INTO public.analysis_findings
 VALUES ...
 ```
 
-**6.4 — `funnel_events`** (upsert por campanha+etapa, janela 7d):
+**6.4 — `funnel_events`** (1 linha por analysis + entidade + etapa do funil):
 ```sql
 INSERT INTO public.funnel_events
-  (client_id, campaign_meta_id, campaign_name, event_type, step_order,
-   count, value_cents, window_days, snapshot_date)
+  (analysis_id, client_id, level, meta_entity_id, entity_name, objective,
+   date_start, date_stop, step_order, event_type,
+   count, value_cents, cost_per_event_cents, cvr_from_prev, cvr_from_top, raw)
 VALUES ...
-ON CONFLICT (client_id, campaign_meta_id, event_type, snapshot_date)
-DO UPDATE SET count = EXCLUDED.count, value_cents = EXCLUDED.value_cents, updated_at = now();
+ON CONFLICT (analysis_id, level, meta_entity_id, event_type)
+DO UPDATE SET
+  count                = EXCLUDED.count,
+  value_cents          = EXCLUDED.value_cents,
+  cost_per_event_cents = EXCLUDED.cost_per_event_cents,
+  cvr_from_prev        = EXCLUDED.cvr_from_prev,
+  cvr_from_top         = EXCLUDED.cvr_from_top,
+  raw                  = EXCLUDED.raw;
 ```
+
+Campos:
+- `level`: `'account'` | `'campaign'` | `'ad_set'` | `'ad'`
+- `meta_entity_id`: ID Meta da entidade (campanha, ad set, ad) — use `'account'` para nível conta
+- `step_order`: 1=impression, 2=link_click, 3=landing_page_view, 4=view_content, 5=add_to_cart, 6=initiate_checkout, 7=purchase
+- `cvr_from_prev`: count / count da etapa anterior (null para impression)
+- `cvr_from_top`: count / impressions
+- `raw`: jsonb com os action_types usados para derivar o valor
 
 **6.5 — `operation_logs`:**
 ```sql
