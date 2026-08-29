@@ -8,17 +8,17 @@
 # On-demand jobs: poll a cada minuto via poll-agent-jobs.sh.
 
 # ── Weekly funnel analytics (segunda-feira 08h BRT) ────────────────────────────
-# Opção 3: skill verifica gasto nos últimos 7 dias antes de rodar análise completa.
-0  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=brasdente
-1  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=bombapatch
-3  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=cardsofparadise
-4  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=clorin
-5  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=coutinho
-6  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=dolcevivere
-7  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=lulibaby
-8  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=originalflex
-9  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=piemon
-10 8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=armando
+# PAUSADO — descomentar quando o projeto estiver redondinho para produção.
+# 0  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=brasdente
+# 1  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=bombapatch
+# 3  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=cardsofparadise
+# 4  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=clorin
+# 5  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=coutinho
+# 6  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=dolcevivere
+# 7  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=lulibaby
+# 8  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=originalflex
+# 9  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=piemon
+# 10 8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=armando
 
 # ── On-demand job queue (Nexus → agent_jobs → runner) ─────────────────────────
 # Every minute: claim one pending job enqueued by the Nexus dashboard.
