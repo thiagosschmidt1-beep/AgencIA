@@ -1,7 +1,7 @@
 # NOTES.md — Agência de Agents Meta Ads (agents_team_imersao_pro)
 
 > Arquivo vivo. Atualizar após cada sessão de implementação antes de compactar.
-> Última atualização: 2026-08-29 (sessão 5 — parte 2)
+> Última atualização: 2026-08-29 (sessão 6)
 
 ---
 
@@ -15,37 +15,31 @@ C:\Users\User\Desktop\Projetos IA\AgencI.A\agents_team_imersao_pro
 **GitHub:** https://github.com/thiagosschmidt1-beep/AgencIA (conta: thiagosschmidt1-beep, branch: main)
 
 **O que já está feito (não refazer):**
-- 11 clientes ativos configurados com Page IDs, Pixels, campaign_mode, URLs e WhatsApps ✅
-- 3 skills genéricas revisadas com branching por campaign_mode ✅
-- Clientes removidos: firebull, popular, daniele-melo, dpo-board ✅
-- GitHub: projeto `AgencIA` criado e código pushed ✅
-- EasyPanel (DigitalOcean): runner `meta-ads-runner` deployado no projeto `agencia-ia` ✅
-- Variáveis de ambiente corrigidas no EasyPanel (sessão 5) ✅
-- Runner rodando: supercronic ativo, poll-agent-jobs.sh executando a cada minuto ✅
-- Facebook Page IDs e default_landing_url populados no Supabase via SQL (sessão 5) ✅
-- `funnel-analytics-campaign` aprimorado: consulta histórico de findings 30 dias antes de diagnosticar (commit `cb68256`) ✅
-- Skill testada com sucesso: lulibaby analisada, dados persistidos no Supabase (sessão 5) ✅
-- Modelo trocado para `claude-haiku-4-5-20251001` via env var `CLAUDE_MODEL` no EasyPanel ✅
-- Schema do banco corrigido: `operation_logs` aceita `entity_type='analysis'` e `action='analyze'` ✅
-- SKILL.md corrigido: `overall_verdict`, `funnel_events` e `operation_logs` alinhados com schema real ✅
-- **Custo reduzido**: analytics semanal (segunda 08h) + guard de gasto ativo + criação só via Nexus ✅
+- 10 clientes ativos: brasdente, bombapatch, cardsofparadise, clorin, coutinho, dolcevivere, lulibaby, originalflex, piemon, armando ✅
+- Clientes removidos: firebull, popular, daniele-melo, dpo-board, bpure, cliente-exemplo ✅
+- 3 skills genéricas headless (create, activate, analytics) ✅
+- Runner EasyPanel: supercronic ativo, MCPs conectados (Supabase ✅, Meta Ads ✅) ✅
+- Nexus testado com sucesso: "analise a performance da lulibaby" → leu findings do Supabase e respondeu com diagnóstico detalhado ✅
+- **Analytics semanais PAUSADOS no crontab** — descomentar quando pronto para produção ✅
+- poll-agent-jobs.sh continua rodando (jobs on-demand via Nexus funcionam normalmente) ✅
+- TTS (ElevenLabs) retornando 502 — investigar credenciais (ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID na Vercel)
 
 **O que falta — em ordem:**
 
-1. **⚠️ PENDENTE — Redeploy + reautenticar Claude após mudança de crontab**
-   - Fazer redeploy no EasyPanel para pegar o novo crontab
-   - Após redeploy: Console → bash → `claude` → autenticar MCPs → `/exit`
+1. **⚠️ Resolver áudio do Nexus (TTS 502)**
+   - Verificar logs Vercel → `/api/nexus/tts` → status do erro ElevenLabs
+   - Testar chave: `curl https://api.elevenlabs.io/v1/voices -H "xi-api-key: SUA_KEY"`
+   - 401 = key inválida · 422 = voice ID errado · 200 = problema é outro
 
-2. **Testar** via Nexus voice: "analise a performance da lulibaby"
+2. **Quando pronto para produção**: descomentar as 10 linhas de analytics no `crontab` → commit → push → redeploy EasyPanel
 
 **Contexto do runner (EasyPanel):**
 - Projeto: `agencia-ia` → serviço: `meta-ads-runner`
 - Console: EasyPanel → serviço → aba Console → bash
 - Supabase MCP: ✅ conectado
-- Meta Ads MCP: ✅ token correto (`META_ADS_MCP_TOKEN` configurado no EasyPanel)
+- Meta Ads MCP: ✅ conectado (`META_ADS_MCP_TOKEN` configurado)
 - `entrypoint.sh`: configura MCP automaticamente ao iniciar
 - URL Meta Ads MCP: `https://meta-ads-mcp-xi.vercel.app/mcp`
-- ⚠️ Env vars EasyPanel: `ANTHROPIC_API_KEY` e `OPENAI_API_KEY` agora corretas (sessão 5 — estavam corrompidas por formatação errada)
 
 **Problema recorrente — jq syntax error:**
 - Aparece no início e fim de cada run mas não bloqueia a execução
@@ -260,6 +254,10 @@ O Nexus (assistente de voz) tem acesso a 8 tools server-side:
 ✅ Schema banco corrigido: `operation_logs` aceita `analysis`/`analyze`; SKILL.md alinhado (sessão 5)
 ✅ Custo reduzido: analytics semanal (segunda 08h BRT) + guard spend>0 + criação só via Nexus (sessão 5)
 ✅ Crontab simplificado: 11 entradas analytics semanais + poll-agent-jobs.sh (sessão 5)
+✅ Redeploy EasyPanel + reautenticação Claude + MCPs verificados (sessão 6)
+✅ Nexus testado end-to-end via voice: análise da lulibaby retornou diagnóstico completo do Supabase (sessão 6)
+✅ Clientes removidos: bpure e cliente-exemplo (crontab + tools.ts + lista-de-clientes) (sessão 6)
+✅ Analytics semanais pausados no crontab — zero gasto autônomo até projeto estar pronto (sessão 6)
 
 ---
 
