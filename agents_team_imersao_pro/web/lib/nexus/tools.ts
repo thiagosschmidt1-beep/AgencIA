@@ -26,7 +26,6 @@ type ToolDef = {
 const ENABLED_SLUGS = [
   "brasdente",
   "bombapatch",
-  "bpure",
   "cardsofparadise",
   "clorin",
   "coutinho",
@@ -35,7 +34,6 @@ const ENABLED_SLUGS = [
   "originalflex",
   "piemon",
   "armando",
-  "cliente-exemplo",
 ] as const;
 
 const CREATE_SKILL_BY_SLUG: Record<string, string> = Object.fromEntries(

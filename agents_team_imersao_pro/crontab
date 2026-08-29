@@ -11,7 +11,6 @@
 # Opção 3: skill verifica gasto nos últimos 7 dias antes de rodar análise completa.
 0  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=brasdente
 1  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=bombapatch
-2  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=bpure
 3  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=cardsofparadise
 4  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=clorin
 5  8 * * 1 /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=coutinho

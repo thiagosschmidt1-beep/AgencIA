@@ -37,19 +37,6 @@ Nome: BOMBAPATCH (CAA-01)
 
 ---
 
-### bpure
-Nome: BPURE ECOMMERCE
-- Ad Account: `act_851938083483833`
-- Facebook Page: `614520455269621`
-- Pixel: `1838143447063526`
-- Campaign mode: `SALES_WEBSITE`
-- Landing URL: `https://loja.bpure.com.br/home`
-- Orçamento máximo permitido: R$50,00/dia por campanha
-- Materiais: `.claude/materiais-das-empresas/bpure/`
-- Observação (ecommerce): URL padrão é a home da loja. Para criativos de produto específico, usar a URL do produto.
-
----
-
 ### cardsofparadise
 Nome: CARDS OF PARADISE
 - Ad Account: `act_1054871085321918`
