@@ -113,10 +113,47 @@ Para cada campanha ativa:
 ### Passo 4 — Construir funil canônico (§3.1)
 Para cada entidade de campanha: extraia cada etapa do funil a partir de `actions[]` e `action_values[]`.
 
+### Passo 4.5 — Carregar histórico de recomendações (últimos 30 dias)
+
+Antes de diagnosticar, consulte o histórico de findings do cliente para evitar repetir recomendações já feitas e sem resultado:
+
+```sql
+SELECT
+  af.metric_focus,
+  af.recommended_action,
+  af.recommendation_type,
+  af.severity,
+  COUNT(*)                          AS vezes_recomendado,
+  MIN(a.window_stop)                AS primeira_vez,
+  MAX(a.window_stop)                AS ultima_vez
+FROM public.analysis_findings af
+JOIN public.analyses a ON a.id = af.analysis_id
+WHERE a.client_id = '<client_id>'
+  AND a.window_stop >= now() - interval '30 days'
+GROUP BY af.metric_focus, af.recommended_action, af.recommendation_type, af.severity
+ORDER BY vezes_recomendado DESC;
+```
+
+Use o resultado para guiar o diagnóstico (Passo 5) com as seguintes regras:
+
+**Regra 1 — Recomendação persistente sem melhora (≥3 semanas consecutivas):**
+- Se a mesma `recommended_action` aparece ≥3 vezes nos últimos 30 dias E as métricas não melhoraram → **não repita** a mesma recomendação.
+- Em vez disso, escale: sugira uma abordagem diferente (ex: se já recomendou "pausar criativo X" por 3 semanas, agora recomende "substituir audiência" ou "revisar oferta").
+- Registre no finding: `"Recomendação anterior repetida X vezes sem resultado — nova abordagem sugerida"`.
+
+**Regra 2 — Recomendação nova (nunca vista ou < 2 vezes):**
+- Gere normalmente seguindo §3.2 + §3.3.
+
+**Regra 3 — Problema resolvido:**
+- Se uma recomendação anterior existia mas a métrica associada melhorou (comparando snapshot atual vs. anterior) → registre finding `low` com `"Melhora detectada em <metric_focus> — recomendação anterior possivelmente efetiva"`.
+
+**Se não houver histórico** (primeiro run do cliente): ignore este passo e diagnostique normalmente.
+
 ### Passo 5 — Diagnosticar (§3.2 + §3.3)
 - Identifique o north-star de cada campanha pelo `objective`
 - Cruze ≥2 métricas por finding
 - Classifique severidade (§3.3)
+- Aplique as regras do histórico (§4.5) antes de formular cada `recommended_action`
 - Gere `recommended_action` concreto (pausa, ajuste orçamento, novo criativo, etc.)
 - Derive `overall_verdict`: `excellent` | `good` | `attention` | `critical` | `no_data` | `error`
 
