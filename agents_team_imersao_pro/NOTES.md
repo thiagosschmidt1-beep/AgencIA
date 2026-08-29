@@ -1,7 +1,7 @@
 # NOTES.md — Agência de Agents Meta Ads (agents_team_imersao_pro)
 
 > Arquivo vivo. Atualizar após cada sessão de implementação antes de compactar.
-> Última atualização: 2026-08-29 (sessão 5)
+> Última atualização: 2026-08-29 (sessão 5 — parte 2)
 
 ---
 
@@ -17,7 +17,6 @@ C:\Users\User\Desktop\Projetos IA\AgencI.A\agents_team_imersao_pro
 **O que já está feito (não refazer):**
 - 11 clientes ativos configurados com Page IDs, Pixels, campaign_mode, URLs e WhatsApps ✅
 - 3 skills genéricas revisadas com branching por campaign_mode ✅
-- Crontab atualizado (11 clientes + 4 campanhas Piemon) ✅
 - Clientes removidos: firebull, popular, daniele-melo, dpo-board ✅
 - GitHub: projeto `AgencIA` criado e código pushed ✅
 - EasyPanel (DigitalOcean): runner `meta-ads-runner` deployado no projeto `agencia-ia` ✅
@@ -25,20 +24,19 @@ C:\Users\User\Desktop\Projetos IA\AgencI.A\agents_team_imersao_pro
 - Runner rodando: supercronic ativo, poll-agent-jobs.sh executando a cada minuto ✅
 - Facebook Page IDs e default_landing_url populados no Supabase via SQL (sessão 5) ✅
 - `funnel-analytics-campaign` aprimorado: consulta histórico de findings 30 dias antes de diagnosticar (commit `cb68256`) ✅
+- Skill testada com sucesso: lulibaby analisada, dados persistidos no Supabase (sessão 5) ✅
+- Modelo trocado para `claude-haiku-4-5-20251001` via env var `CLAUDE_MODEL` no EasyPanel ✅
+- Schema do banco corrigido: `operation_logs` aceita `entity_type='analysis'` e `action='analyze'` ✅
+- SKILL.md corrigido: `overall_verdict`, `funnel_events` e `operation_logs` alinhados com schema real ✅
+- **Custo reduzido**: analytics semanal (segunda 08h) + guard de gasto ativo + criação só via Nexus ✅
 
 **O que falta — em ordem:**
 
-1. **⚠️ PENDENTE — Autenticar Claude no runner após cada redeploy**
-   - Cada redeploy do EasyPanel apaga as credenciais OAuth do Claude
-   - Após redeploy: abrir Console → bash → executar `claude` → autenticar MCPs (Supabase + Meta Ads)
-   - Depois sair com `/exit` e testar a skill
+1. **⚠️ PENDENTE — Redeploy + reautenticar Claude após mudança de crontab**
+   - Fazer redeploy no EasyPanel para pegar o novo crontab
+   - Após redeploy: Console → bash → `claude` → autenticar MCPs → `/exit`
 
-2. **Testar** skill manualmente via console do EasyPanel:
-   ```bash
-   /app/scripts/run-skill.sh funnel-analytics-campaign client_slug=lulibaby
-   ```
-
-3. **Testar** via Nexus voice: "analise a performance da lulibaby"
+2. **Testar** via Nexus voice: "analise a performance da lulibaby"
 
 **Contexto do runner (EasyPanel):**
 - Projeto: `agencia-ia` → serviço: `meta-ads-runner`
@@ -256,7 +254,12 @@ O Nexus (assistente de voz) tem acesso a 8 tools server-side:
 ✅ Facebook Page IDs populados no Supabase para todos os 11 clientes ativos (sessão 5)
 ✅ `default_landing_url` populado no Supabase para clientes com tráfego para site (sessão 5)
 ✅ Env vars EasyPanel corrigidas: `ANTHROPIC_API_KEY` e `OPENAI_API_KEY` sem corrupção (sessão 5)
-✅ `funnel-analytics-campaign`: histórico de recomendações consultado antes de diagnosticar — evita repetir sugestões sem resultado (commit `cb68256`, sessão 5)
+✅ `funnel-analytics-campaign`: histórico de recomendações consultado antes de diagnosticar (commit `cb68256`, sessão 5)
+✅ Skill testada com sucesso end-to-end: lulibaby analisada, funil + findings + snapshots no Supabase (sessão 5)
+✅ Modelo: `claude-haiku-4-5-20251001` via `CLAUDE_MODEL` no EasyPanel (sessão 5)
+✅ Schema banco corrigido: `operation_logs` aceita `analysis`/`analyze`; SKILL.md alinhado (sessão 5)
+✅ Custo reduzido: analytics semanal (segunda 08h BRT) + guard spend>0 + criação só via Nexus (sessão 5)
+✅ Crontab simplificado: 11 entradas analytics semanais + poll-agent-jobs.sh (sessão 5)
 
 ---
 
