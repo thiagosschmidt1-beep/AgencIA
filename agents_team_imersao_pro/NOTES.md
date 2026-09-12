@@ -1,7 +1,7 @@
 # NOTES.md — Agência de Agents Meta Ads (agents_team_imersao_pro)
 
 > Arquivo vivo. Atualizar após cada sessão de implementação antes de compactar.
-> Última atualização: 2026-09-12 (sessão 7 — continuação)
+> Última atualização: 2026-09-12 (sessão 8)
 
 ---
 
@@ -16,34 +16,35 @@ C:\Users\User\Desktop\Projetos IA\AgencI.A\agents_team_imersao_pro
 
 **O que já está feito (não refazer):**
 - 10 clientes ativos: brasdente, bombapatch, cardsofparadise, clorin, coutinho, dolcevivere, lulibaby, originalflex, piemon, armando ✅
-- Clientes removidos: firebull, popular, daniele-melo, dpo-board, bpure, cliente-exemplo ✅
-- 3 skills genéricas headless (create, activate, analytics) ✅
-- Runner EasyPanel: supercronic ativo, MCPs conectados (Supabase ✅, Meta Ads ✅) ✅
-- Nexus testado com sucesso: "analise a performance da lulibaby" → leu findings do Supabase e respondeu com diagnóstico detalhado ✅
-- **Analytics semanais PAUSADOS no crontab** — descomentar quando pronto para produção ✅
-- poll-agent-jobs.sh continua rodando (jobs on-demand via Nexus funcionam normalmente) ✅
-- **TTS resolvido**: ElevenLabs removido, Nexus usa OpenAI TTS (`tts-1`, voz `nova`) ✅
-  - Voz configurável via env var `OPENAI_TTS_VOICE` na Vercel (opções: alloy, echo, fable, onyx, nova, shimmer)
-  - Remover `ELEVENLABS_API_KEY` e `ELEVENLABS_VOICE_ID` da Vercel (não usadas)
+- TTS resolvido: ElevenLabs removido, OpenAI `tts-1` voz `nova` ✅
+- Banco de otimizações fracassadas: tabela `failed_optimizations` com 21 registros, migrations aplicadas ✅
+- Skill `optimize-campaign/SKILL.md` criada com modos suggest/apply/record_failure ✅
+- `agent_jobs` kind `optimize` adicionado via migration ✅
+- Nexus: 5 novas tools — `request_optimization`, `get_failed_optimizations`, `record_failed_optimization`, `get_optimization_suggestions`, `approve_optimization` ✅
+- Dashboard: seção "Sugestões de Otimização" na página do cliente com checkboxes + botão aprovar ✅
+- API: `POST /api/optimizations/approve` para aprovar pelo dashboard ✅
+- EasyPanel rebuilado com imagem nova (skill `optimize-campaign` agora está no disco) ✅
 
-**O que falta — em ordem:**
-
-1. **Quando pronto para produção**: descomentar as 10 linhas de analytics no `crontab` → commit → push → redeploy EasyPanel
-2. **Adicionar `optimize` ao `agent_jobs` kinds**: verificar se a migration `20260821000007_update_agent_jobs_google_kinds.sql` precisa incluir `optimize` como kind válido
-3. **Testar skill optimize-campaign**: via Nexus — "otimize a lulibaby" → confirmar → aguardar sugestões
+**🔴 AÇÃO PENDENTE — FAZER AGORA:**
+- **Re-autenticar Claude OAuth no EasyPanel** (exit_code=3 — credenciais sumiram com o rebuild)
+  1. EasyPanel → serviço runner → aba Terminal/Console
+  2. Executar: `runuser -u runner -- claude`
+  3. Seguir fluxo OAuth (URL no browser → autorizar)
+  4. Fechar após sucesso
+  5. Testar: Nexus → "otimize a [cliente]" → confirmar → aguardar job
 
 **Contexto do runner (EasyPanel):**
 - Projeto: `agencia-ia` → serviço: `meta-ads-runner`
-- Console: EasyPanel → serviço → aba Console → bash
+- Console: EasyPanel → serviço → aba Terminal ou Console → bash
 - Supabase MCP: ✅ conectado
-- Meta Ads MCP: ✅ conectado (`META_ADS_MCP_TOKEN` configurado)
-- `entrypoint.sh`: configura MCP automaticamente ao iniciar
+- Meta Ads MCP: ✅ conectado (`META_ADS_MCP_TOKEN` configurado via `entrypoint.sh`)
 - URL Meta Ads MCP: `https://meta-ads-mcp-xi.vercel.app/mcp`
 
+**Quando pronto para produção:**
+- Descomentar analytics semanais no `crontab` → commit → push → redeploy EasyPanel
+
 **Problema recorrente — jq syntax error:**
-- Aparece no início e fim de cada run mas não bloqueia a execução
-- É cosmético — versão do `jq` no container não suporta a sintaxe usada no `emit-from-stream.py`
-- Pode corrigir em sessão futura se necessário
+- Aparece no início/fim de cada run mas não bloqueia execução (cosmético)
 
 ---
 
@@ -262,6 +263,13 @@ O Nexus (assistente de voz) tem acesso a 8 tools server-side:
 ✅ Banco de otimizações fracassadas implementado: tabela `failed_optimizations` no Supabase com 21 registros reais de 7 clientes (sessão 7)
 ✅ Skill `optimize-campaign` criada: consulta banco de falhas antes de sugerir, modos suggest/apply/record_failure (sessão 7)
 ✅ 3 novas tools no Nexus: `request_optimization`, `get_failed_optimizations`, `record_failed_optimization` (sessão 7)
+✅ Interface dupla de aprovação de otimizações (sessão 8):
+   - Nexus: `get_optimization_suggestions` + `approve_optimization` (confirm=false/true)
+   - Dashboard: `OptimizationSection` client component com checkboxes + botão aprovar
+   - API: `POST /api/optimizations/approve` → enfileira job `optimize` mode=apply
+   - Service: `getPendingOptimizations()` lê último job de optimize por cliente
+✅ EasyPanel rebuilado com imagem contendo skill `optimize-campaign` (sessão 8)
+⚠️  OAuth Claude expirou no rebuild → re-autenticar via console EasyPanel (exit_code=3)
 
 ---
 
