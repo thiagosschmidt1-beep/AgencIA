@@ -627,7 +627,7 @@ const tools: Record<string, ToolDef> = {
       if (data.status === "failed") {
         return { client_slug: slug, status: "failed", error: data.error, note: "a análise falhou; verifique o log e tente novamente" };
       }
-      // status === 'done'
+      // status === 'done' ou 'completed' (o poller grava 'completed' no exit_code=0)
       const result = data.result as Record<string, unknown> | null;
       const suggestions = Array.isArray(result?.suggestions) ? result.suggestions : [];
       return {
@@ -686,7 +686,7 @@ const tools: Record<string, ToolDef> = {
         .limit(1)
         .maybeSingle();
 
-      if (!lastJob || lastJob.status !== "done") {
+      if (!lastJob || (lastJob.status !== "done" && lastJob.status !== "completed")) {
         return { error: "nenhuma sugestão pronta para aplicar; use request_optimization e aguarde a análise terminar" };
       }
 

@@ -21,7 +21,8 @@ type Props = {
 };
 
 export function OptimizationSection({ clientSlug, optimizationJob }: Props) {
-  const suggestions = optimizationJob?.status === "done" ? parseSuggestions(optimizationJob.result) : [];
+  const isDone = optimizationJob?.status === "done" || optimizationJob?.status === "completed";
+  const suggestions = isDone ? parseSuggestions(optimizationJob!.result) : [];
   const [selected, setSelected] = useState<Set<string>>(new Set(suggestions.map((s) => s.id)));
   const [state, setState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -74,7 +75,7 @@ export function OptimizationSection({ clientSlug, optimizationJob }: Props) {
     );
   }
 
-  if (optimizationJob.status === "pending" || optimizationJob.status === "running") {
+  if (!isDone && (optimizationJob.status === "pending" || optimizationJob.status === "running")) {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-white">Sugestões de Otimização</h2>
@@ -88,7 +89,7 @@ export function OptimizationSection({ clientSlug, optimizationJob }: Props) {
     );
   }
 
-  if (optimizationJob.status === "failed") {
+  if (!isDone && optimizationJob.status === "failed") {
     return (
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-white">Sugestões de Otimização</h2>

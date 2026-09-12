@@ -29,10 +29,14 @@ Roda em **headless** (`claude -p`). Regras:
 
 ## 2. Resolução do cliente e modo
 
-**Passo 0 — Extrair argumentos de `$ARGUMENTS`:**
+**Passo 0 — Extrair argumentos de `$ARGUMENTS` e variáveis de ambiente:**
 - `client_slug` (obrigatório) — ex: `client_slug=brasdente`
 - `mode` (opcional, default: `suggest`) — `suggest` gera sugestões | `apply` aplica as aprovadas
-- `job_id` (obrigatório no modo `apply`) — UUID do job em `agent_jobs` com as sugestões aprovadas
+- `job_id` — primeiro tente extrair de `$ARGUMENTS`; se ausente, use a variável de ambiente `$AGENT_JOB_ID` (sempre disponível quando disparado pela fila). Exemplo de extração via Bash:
+  ```bash
+  echo "$AGENT_JOB_ID"
+  ```
+  **O `job_id` é obrigatório para salvar sugestões no banco (modo suggest) e para ler sugestões aprovadas (modo apply). Sempre resolva antes de continuar.**
 
 **Passo 1 — Lookup no Supabase:**
 ```sql
@@ -133,7 +137,7 @@ SET
 WHERE id = '<job_id>';
 ```
 
-Se não há `job_id` (rodada manual), grave só o manifest local e encerre.
+Se não há `job_id` mesmo após verificar `$AGENT_JOB_ID` (rodada manual sem fila), grave só o manifest local e encerre. Quando rodado via fila, `$AGENT_JOB_ID` **sempre** estará presente — use-o obrigatoriamente.
 
 ---
 
