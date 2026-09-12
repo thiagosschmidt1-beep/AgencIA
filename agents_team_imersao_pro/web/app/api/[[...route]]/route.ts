@@ -14,6 +14,7 @@ import { rateLimiters, enforceLimit, clientIp } from "@/lib/ratelimit";
 import { transcribe } from "@/lib/nexus/stt";
 import { runChat } from "@/lib/nexus/chat";
 import { synthesizeStream } from "@/lib/nexus/tts";
+import { db } from "@/lib/db/client";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -143,6 +144,59 @@ app.post("/nexus/tts", async (c) => {
     console.error(JSON.stringify({ level: "error", event: "tts_failed", message: errMsg(err) }));
     return c.json({ error: "tts_failed" }, 502);
   }
+});
+
+// ---------- Optimization approval ----------
+
+const approveOptimizationSchema = z.object({
+  client_slug: z.string().min(1).max(100),
+  suggestion_ids: z.array(z.string()).min(1).max(20).optional(),
+});
+
+const OPTIMIZE_ENABLED_SLUGS = new Set([
+  "brasdente", "bombapatch", "cardsofparadise", "clorin",
+  "coutinho", "dolcevivere", "lulibaby", "originalflex", "piemon", "armando",
+]);
+
+app.post("/optimizations/approve", async (c) => {
+  const { allowed } = await enforceLimit(rateLimiters.analysisRequest(), clientIp(c.req.raw), "optimization-approve");
+  if (!allowed) return c.json({ error: "rate_limited" }, 429, { "Retry-After": "60" });
+
+  const parsed = approveOptimizationSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "invalid_request" }, 400);
+
+  const { client_slug, suggestion_ids } = parsed.data;
+  if (!OPTIMIZE_ENABLED_SLUGS.has(client_slug)) {
+    return c.json({ error: "client_not_enabled" }, 400);
+  }
+
+  const { data: client, error: clientErr } = await db()
+    .from("clients")
+    .select("id, name")
+    .eq("slug", client_slug)
+    .maybeSingle();
+  if (clientErr) throw clientErr;
+  if (!client) return c.json({ error: "client_not_found" }, 404);
+
+  const { data: job, error: jobErr } = await db()
+    .from("agent_jobs")
+    .insert({
+      client_id: client.id,
+      skill: "optimize-campaign",
+      kind: "optimize",
+      args: { client_slug, mode: "apply", suggestion_ids: suggestion_ids ?? "all" },
+      requested_by: "dashboard",
+    })
+    .select("id")
+    .single();
+  if (jobErr) {
+    if (typeof jobErr === "object" && (jobErr as { code?: string }).code === "23505") {
+      return c.json({ error: "already_in_progress" }, 409);
+    }
+    throw jobErr;
+  }
+
+  return c.json({ enqueued: true, job_id: job.id, client_slug });
 });
 
 app.get("/health", (c) => c.json({ ok: true }));

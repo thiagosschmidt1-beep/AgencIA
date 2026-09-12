@@ -9,6 +9,25 @@ import type {
   MetricSnapshot,
 } from "@/lib/db/types";
 
+export type OptimizationJob = {
+  id: string;
+  status: string;
+  created_at: string;
+  finished_at: string | null;
+  result: unknown;
+};
+
+export type OptimizationSuggestion = {
+  id: string;
+  prioridade: string;
+  tipo_otimizacao: string;
+  entidade_nome?: string;
+  entidade_id?: string;
+  acao: string;
+  impacto_esperado: string;
+  risco?: string;
+};
+
 export type ClientDetail = {
   client: Client;
   campaigns: Campaign[];
@@ -93,4 +112,21 @@ export async function getClientDetail(slug: string): Promise<ClientDetail | null
     creatives: creativesRes.data ?? [],
     latestAnalysis,
   };
+}
+
+/**
+ * Returns the most recent optimize job for a client (any status).
+ * Used to show pending/done suggestions on the client detail page.
+ */
+export async function getPendingOptimizations(clientId: string): Promise<OptimizationJob | null> {
+  const { data, error } = await db()
+    .from("agent_jobs")
+    .select("id, status, created_at, finished_at, result")
+    .eq("client_id", clientId)
+    .eq("kind", "optimize")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ?? null;
 }

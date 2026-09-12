@@ -595,6 +595,156 @@ const tools: Record<string, ToolDef> = {
     },
   },
 
+  get_optimization_suggestions: {
+    spec: {
+      name: "get_optimization_suggestions",
+      description:
+        "Lê as sugestões de otimização do job mais recente de análise para um cliente. Use quando o operador perguntar 'quais são as sugestões?', 'o que você sugeriu?', 'me mostra as sugestões'. Se o job ainda estiver rodando, avisa que estão sendo geradas. Se as sugestões já estiverem prontas, leia-as ao operador e pergunte se deseja aprovar.",
+      input_schema: {
+        type: "object",
+        properties: { client_slug: { type: "string" } },
+        required: ["client_slug"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const { data, error } = await db()
+        .from("agent_jobs")
+        .select("id, status, created_at, finished_at, result, error")
+        .eq("client_id", client.id)
+        .eq("kind", "optimize")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return { client_slug: slug, note: "nenhum job de otimização encontrado para este cliente; use request_optimization para iniciar" };
+      if (data.status === "pending" || data.status === "running") {
+        return { client_slug: slug, status: data.status, note: "a análise está em andamento; aguarde alguns minutos e tente novamente" };
+      }
+      if (data.status === "failed") {
+        return { client_slug: slug, status: "failed", error: data.error, note: "a análise falhou; verifique o log e tente novamente" };
+      }
+      // status === 'done'
+      const result = data.result as Record<string, unknown> | null;
+      const suggestions = Array.isArray(result?.suggestions) ? result.suggestions : [];
+      return {
+        client_slug: slug,
+        status: "done",
+        job_id: data.id,
+        finished_at: data.finished_at,
+        total_suggestions: suggestions.length,
+        suggestions,
+        note: suggestions.length > 0
+          ? "Sugestões prontas. Leia-as ao operador e pergunte se deseja aprovar. Use approve_optimization com confirm=true após confirmação explícita."
+          : "Nenhuma sugestão de otimização gerada (pode ser que a conta esteja bem ou sem dados suficientes).",
+      };
+    },
+  },
+
+  approve_optimization: {
+    spec: {
+      name: "approve_optimization",
+      description:
+        "Enfileira a APLICAÇÃO das sugestões de otimização aprovadas pelo operador. FLUXO OBRIGATÓRIO: chame com confirm=false para reler as sugestões ao operador e avisar que serão aplicadas na Meta; só chame com confirm=true após 'sim' explícito. Pode aprovar todas as sugestões ou apenas algumas (informando suggestion_ids).",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string" },
+          suggestion_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "IDs das sugestões a aplicar. Omita ou passe [] para aprovar todas.",
+          },
+          confirm: {
+            type: "boolean",
+            description: "false = relê as sugestões e pede confirmação; true = enfileira a aplicação (use só após 'sim' explícito)",
+          },
+        },
+        required: ["client_slug", "confirm"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      const confirm = input.confirm === true;
+      const suggestionIds = Array.isArray(input.suggestion_ids) ? (input.suggestion_ids as string[]) : [];
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const skill = OPTIMIZE_SKILL_BY_SLUG[slug];
+      if (!skill) return { error: `cliente '${slug}' não está habilitado para otimização automática` };
+
+      // Fetch current suggestions to show in the confirmation step
+      const { data: lastJob } = await db()
+        .from("agent_jobs")
+        .select("id, status, result")
+        .eq("client_id", client.id)
+        .eq("kind", "optimize")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!lastJob || lastJob.status !== "done") {
+        return { error: "nenhuma sugestão pronta para aplicar; use request_optimization e aguarde a análise terminar" };
+      }
+
+      const result = lastJob.result as Record<string, unknown> | null;
+      const allSuggestions = Array.isArray(result?.suggestions) ? result.suggestions as Record<string, unknown>[] : [];
+      const toApply = suggestionIds.length > 0
+        ? allSuggestions.filter((s) => suggestionIds.includes(s.id as string))
+        : allSuggestions;
+
+      if (toApply.length === 0) {
+        return { error: "nenhuma sugestão válida para aplicar" };
+      }
+
+      if (!confirm) {
+        return {
+          confirmation_required: true,
+          action: "aplicar otimizações na conta Meta",
+          client: client.name,
+          client_slug: slug,
+          suggestions_to_apply: toApply,
+          warning: "Estas alterações serão aplicadas diretamente nas campanhas ativas. Releia ao operador e só chame com confirm=true após 'sim' explícito.",
+        };
+      }
+
+      const { allowed } = await enforceLimit(rateLimiters.analysisRequest(), slug, "optimization-apply");
+      if (!allowed) return { error: "muitos pedidos para este cliente agora; tente de novo daqui a pouco" };
+
+      const { data, error } = await db()
+        .from("agent_jobs")
+        .insert({
+          client_id: client.id,
+          skill,
+          kind: "optimize",
+          args: { client_slug: slug, mode: "apply", suggestion_ids: suggestionIds.length > 0 ? suggestionIds : "all" },
+          requested_by: "nexus",
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (isUniqueViolation(error)) {
+          return { enqueued: false, reason: "já existe uma otimização em andamento para este cliente" };
+        }
+        throw error;
+      }
+      return {
+        enqueued: true,
+        job_id: data.id,
+        skill,
+        kind: "optimize",
+        mode: "apply",
+        client_slug: slug,
+        suggestions_count: toApply.length,
+        queued_at: new Date().toISOString(),
+        message: `Aplicando ${toApply.length} sugestão(ões) de otimização. Os agents começam em até um minuto.`,
+      };
+    },
+  },
+
   get_recent_jobs: {
     spec: {
       name: "get_recent_jobs",

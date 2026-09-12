@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getClientDetail } from "@/lib/services/client-detail";
+import { getClientDetail, getPendingOptimizations } from "@/lib/services/client-detail";
+import { OptimizationSection } from "./OptimizationSection";
 import {
   formatCents,
   formatDateTime,
@@ -31,6 +32,7 @@ export default async function ClientDetailPage({
   if (!detail) notFound();
 
   const { client, campaigns, creatives, latestAnalysis } = detail;
+  const optimizationJob = await getPendingOptimizations(client.id);
   // North-star view: the campaign-level snapshot with the most spend, if any.
   const top = latestAnalysis?.snapshots.find((s) => s.level === "campaign") ?? latestAnalysis?.snapshots[0];
 
@@ -114,6 +116,9 @@ export default async function ClientDetailPage({
           </div>
         )}
       </section>
+
+      {/* Optimization suggestions */}
+      <OptimizationSection clientSlug={slug} optimizationJob={optimizationJob} />
 
       {/* Campaigns */}
       <section className="space-y-3">
