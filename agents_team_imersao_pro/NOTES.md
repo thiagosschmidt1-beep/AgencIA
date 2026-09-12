@@ -1,7 +1,7 @@
 # NOTES.md — Agência de Agents Meta Ads (agents_team_imersao_pro)
 
 > Arquivo vivo. Atualizar após cada sessão de implementação antes de compactar.
-> Última atualização: 2026-08-29 (sessão 6)
+> Última atualização: 2026-09-12 (sessão 7)
 
 ---
 
@@ -22,16 +22,13 @@ C:\Users\User\Desktop\Projetos IA\AgencI.A\agents_team_imersao_pro
 - Nexus testado com sucesso: "analise a performance da lulibaby" → leu findings do Supabase e respondeu com diagnóstico detalhado ✅
 - **Analytics semanais PAUSADOS no crontab** — descomentar quando pronto para produção ✅
 - poll-agent-jobs.sh continua rodando (jobs on-demand via Nexus funcionam normalmente) ✅
-- TTS (ElevenLabs) retornando 502 — investigar credenciais (ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID na Vercel)
+- **TTS resolvido**: ElevenLabs removido, Nexus usa OpenAI TTS (`tts-1`, voz `nova`) ✅
+  - Voz configurável via env var `OPENAI_TTS_VOICE` na Vercel (opções: alloy, echo, fable, onyx, nova, shimmer)
+  - Remover `ELEVENLABS_API_KEY` e `ELEVENLABS_VOICE_ID` da Vercel (não usadas)
 
 **O que falta — em ordem:**
 
-1. **⚠️ Resolver áudio do Nexus (TTS 502)**
-   - Verificar logs Vercel → `/api/nexus/tts` → status do erro ElevenLabs
-   - Testar chave: `curl https://api.elevenlabs.io/v1/voices -H "xi-api-key: SUA_KEY"`
-   - 401 = key inválida · 422 = voice ID errado · 200 = problema é outro
-
-2. **Quando pronto para produção**: descomentar as 10 linhas de analytics no `crontab` → commit → push → redeploy EasyPanel
+1. **Quando pronto para produção**: descomentar as 10 linhas de analytics no `crontab` → commit → push → redeploy EasyPanel
 
 **Contexto do runner (EasyPanel):**
 - Projeto: `agencia-ia` → serviço: `meta-ads-runner`
@@ -258,6 +255,8 @@ O Nexus (assistente de voz) tem acesso a 8 tools server-side:
 ✅ Nexus testado end-to-end via voice: análise da lulibaby retornou diagnóstico completo do Supabase (sessão 6)
 ✅ Clientes removidos: bpure e cliente-exemplo (crontab + tools.ts + lista-de-clientes) (sessão 6)
 ✅ Analytics semanais pausados no crontab — zero gasto autônomo até projeto estar pronto (sessão 6)
+✅ TTS do Nexus resolvido: ElevenLabs removido, OpenAI tts-1 (voz "nova") como único provider (sessão 7)
+✅ `ELEVENLABS_API_KEY` e `ELEVENLABS_VOICE_ID` podem ser removidas da Vercel (sessão 7)
 
 ---
 
