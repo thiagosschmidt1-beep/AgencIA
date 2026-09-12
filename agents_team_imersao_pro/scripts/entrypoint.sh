@@ -28,6 +28,20 @@ else
   echo "WARN: META_ADS_MCP_TOKEN not set — meta-ads MCP will not be available." >&2
 fi
 
+# Configura o MCP do Supabase com Personal Access Token.
+# Necessário porque ANTHROPIC_API_KEY desabilita os connectors OAuth do Claude.ai.
+SUPABASE_PROJECT_REF="${SUPABASE_PROJECT_REF:-icxonlpsfnrfcbhdvoiz}"
+if [[ -n "${SUPABASE_MCP_TOKEN:-}" ]]; then
+  claude mcp remove supabase 2>/dev/null || true
+  claude mcp add --transport http supabase \
+    "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}" \
+    --header "Authorization: Bearer ${SUPABASE_MCP_TOKEN}" \
+    2>/dev/null || true
+  echo "INFO: supabase MCP configured with PAT." >&2
+else
+  echo "WARN: SUPABASE_MCP_TOKEN not set — supabase MCP will not be available (skills cannot persist data)." >&2
+fi
+
 # -passthrough-logs forwards each job's stdout/stderr to our stdout (captured
 # by container logs). supercronic does not overlap a job with itself by default.
 exec supercronic -passthrough-logs /app/crontab
