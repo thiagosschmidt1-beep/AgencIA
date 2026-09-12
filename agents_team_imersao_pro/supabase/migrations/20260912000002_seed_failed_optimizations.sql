@@ -306,7 +306,7 @@ values
   'Múltiplas variáveis alteradas no mesmo dia no mesmo conjunto tornam impossível isolar o efeito de cada mudança. O custo real não é de mídia, é de aprendizado perdido — sem saber o que causou o que, o padrão se repete.',
   'Uma variável por vez. Mudanças de orçamento e de estrutura (renomear, criar conjunto) separadas por no mínimo 48h. Cada mudança registrada com data explícita de reavaliação.',
   null
-),
+)
 
 -- ============================================================
 -- WEFLORES (inserção condicional — só entra se o cliente existir no banco)
