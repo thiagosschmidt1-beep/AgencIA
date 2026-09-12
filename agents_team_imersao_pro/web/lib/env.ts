@@ -24,8 +24,6 @@ export const env = {
   dashboardPasswordHash: () => required("DASHBOARD_PASSWORD"),
   anthropicApiKey: () => required("ANTHROPIC_API_KEY", process.env.CLAUDE_API_KEY),
   openaiApiKey: () => required("OPENAI_API_KEY"),
-  elevenLabsApiKey: () => required("ELEVENLABS_API_KEY"),
-  elevenLabsVoiceId: () => required("ELEVENLABS_VOICE_ID"),
   upstashRedisUrl: () => required("UPSTASH_REDIS_REST_URL"),
   upstashRedisToken: () => required("UPSTASH_REDIS_REST_TOKEN"),
   // Cloudflare Turnstile (bot/brute-force protection on login). Optional: when the
