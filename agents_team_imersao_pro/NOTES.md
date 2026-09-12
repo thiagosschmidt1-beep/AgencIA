@@ -1,7 +1,7 @@
 # NOTES.md — Agência de Agents Meta Ads (agents_team_imersao_pro)
 
 > Arquivo vivo. Atualizar após cada sessão de implementação antes de compactar.
-> Última atualização: 2026-09-12 (sessão 7)
+> Última atualização: 2026-09-12 (sessão 7 — continuação)
 
 ---
 
@@ -29,6 +29,8 @@ C:\Users\User\Desktop\Projetos IA\AgencI.A\agents_team_imersao_pro
 **O que falta — em ordem:**
 
 1. **Quando pronto para produção**: descomentar as 10 linhas de analytics no `crontab` → commit → push → redeploy EasyPanel
+2. **Adicionar `optimize` ao `agent_jobs` kinds**: verificar se a migration `20260821000007_update_agent_jobs_google_kinds.sql` precisa incluir `optimize` como kind válido
+3. **Testar skill optimize-campaign**: via Nexus — "otimize a lulibaby" → confirmar → aguardar sugestões
 
 **Contexto do runner (EasyPanel):**
 - Projeto: `agencia-ia` → serviço: `meta-ads-runner`
@@ -257,6 +259,9 @@ O Nexus (assistente de voz) tem acesso a 8 tools server-side:
 ✅ Analytics semanais pausados no crontab — zero gasto autônomo até projeto estar pronto (sessão 6)
 ✅ TTS do Nexus resolvido: ElevenLabs removido, OpenAI tts-1 (voz "nova") como único provider (sessão 7)
 ✅ `ELEVENLABS_API_KEY` e `ELEVENLABS_VOICE_ID` podem ser removidas da Vercel (sessão 7)
+✅ Banco de otimizações fracassadas implementado: tabela `failed_optimizations` no Supabase com 21 registros reais de 7 clientes (sessão 7)
+✅ Skill `optimize-campaign` criada: consulta banco de falhas antes de sugerir, modos suggest/apply/record_failure (sessão 7)
+✅ 3 novas tools no Nexus: `request_optimization`, `get_failed_optimizations`, `record_failed_optimization` (sessão 7)
 
 ---
 
