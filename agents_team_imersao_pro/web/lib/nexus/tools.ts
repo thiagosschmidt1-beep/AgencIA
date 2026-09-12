@@ -45,6 +45,9 @@ const ACTIVATE_SKILL_BY_SLUG: Record<string, string> = Object.fromEntries(
 const ANALYZE_SKILL_BY_SLUG: Record<string, string> = Object.fromEntries(
   ENABLED_SLUGS.map((slug) => [slug, "funnel-analytics-campaign"]),
 );
+const OPTIMIZE_SKILL_BY_SLUG: Record<string, string> = Object.fromEntries(
+  ENABLED_SLUGS.map((slug) => [slug, "optimize-campaign"]),
+);
 
 function str(input: Record<string, unknown>, key: string): string | undefined {
   const v = input[key];
@@ -427,6 +430,167 @@ const tools: Record<string, ToolDef> = {
         queued_at: new Date().toISOString(),
         message:
           "Análise enfileirada. Os agents começam em até um minuto e levam alguns minutos; depois é só pedir o resultado (get_latest_analysis).",
+      };
+    },
+  },
+
+  request_optimization: {
+    spec: {
+      name: "request_optimization",
+      description:
+        "Enfileira a geração de SUGESTÕES DE OTIMIZAÇÃO para um cliente (os agents analisam performance, consultam o banco de falhas históricas e devolvem uma lista priorizada). Após receber as sugestões, o Nexus as apresenta ao operador e só enfileira a aplicação se houver aprovação explícita. FLUXO: chame com confirm=false para exibir o que será feito; só chame com confirm=true após 'sim' do operador.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string", description: "slug do cliente, ex.: lulibaby" },
+          confirm: {
+            type: "boolean",
+            description: "false = exibe detalhes para confirmar; true = enfileira a análise de sugestões",
+          },
+        },
+        required: ["client_slug", "confirm"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      const confirm = input.confirm === true;
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const client = await resolveClientId(slug);
+      if (!client) return { error: `cliente '${slug}' não encontrado` };
+      const skill = OPTIMIZE_SKILL_BY_SLUG[slug];
+      if (!skill) return { error: `cliente '${slug}' não está habilitado para otimização automática` };
+
+      if (!confirm) {
+        return {
+          confirmation_required: true,
+          action: "gerar sugestões de otimização",
+          client: client.name,
+          client_slug: slug,
+          note: "Os agents vão analisar a performance atual, consultar o histórico de falhas e devolver uma lista de sugestões priorizadas. Nenhuma alteração é feita agora — só após nova confirmação com cada sugestão.",
+        };
+      }
+
+      const { allowed } = await enforceLimit(rateLimiters.analysisRequest(), slug, "optimize-suggest");
+      if (!allowed) return { error: "muitos pedidos para este cliente agora; tente de novo daqui a pouco" };
+
+      const { data, error } = await db()
+        .from("agent_jobs")
+        .insert({
+          client_id: client.id,
+          skill,
+          kind: "optimize",
+          args: { client_slug: slug, mode: "suggest" },
+          requested_by: "nexus",
+        })
+        .select("id")
+        .single();
+      if (error) {
+        if (isUniqueViolation(error)) {
+          return { enqueued: false, reason: "já existe uma otimização em andamento para este cliente" };
+        }
+        throw error;
+      }
+      return {
+        enqueued: true,
+        job_id: data.id,
+        skill,
+        kind: "optimize",
+        mode: "suggest",
+        client_slug: slug,
+        queued_at: new Date().toISOString(),
+        message: "Análise de otimização enfileirada. Em alguns minutos trago as sugestões para você aprovar.",
+      };
+    },
+  },
+
+  get_failed_optimizations: {
+    spec: {
+      name: "get_failed_optimizations",
+      description:
+        "Lista as otimizações que já foram tentadas e não deram certo para um cliente, com o padrão e o motivo do fracasso. Use para responder perguntas como 'o que já tentamos e não funcionou?' ou antes de sugerir uma ação.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string" },
+          limit: { type: "number", description: "padrão 10, máximo 20" },
+        },
+        required: ["client_slug"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      if (!slug) return { error: "client_slug é obrigatório" };
+      const rawLimit = typeof input.limit === "number" ? input.limit : 10;
+      const limit = Math.min(Math.max(1, rawLimit), 20);
+      const { data, error } = await db()
+        .from("failed_optimizations")
+        .select("id, data_acao, tipo_otimizacao, padrao, severidade, status_atual, por_que_nao_deu_certo, recomendacao")
+        .eq("client_slug", slug)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return { client_slug: slug, total: data?.length ?? 0, records: data ?? [] };
+    },
+  },
+
+  record_failed_optimization: {
+    spec: {
+      name: "record_failed_optimization",
+      description:
+        "Registra uma otimização que foi aplicada mas não deu certo, para que os agents não a repitam no futuro. Use quando o operador disser frases como 'isso não funcionou', 'anota que isso falhou', 'não repita isso'.",
+      input_schema: {
+        type: "object",
+        properties: {
+          client_slug: { type: "string" },
+          tipo_otimizacao: { type: "string", description: "ex.: escala_de_orcamento_rapida_demais" },
+          acao_tomada: { type: "string", description: "o que foi feito" },
+          por_que_nao_deu_certo: { type: "string", description: "o que o operador observou" },
+          entidade_id: { type: "string", description: "campaign_id, adset_id ou ad_id (opcional)" },
+        },
+        required: ["client_slug", "tipo_otimizacao", "acao_tomada", "por_que_nao_deu_certo"],
+      },
+    },
+    handler: async (input) => {
+      const slug = str(input, "client_slug");
+      const tipo = str(input, "tipo_otimizacao");
+      const acao = str(input, "acao_tomada");
+      const porque = str(input, "por_que_nao_deu_certo");
+      const entidadeId = str(input, "entidade_id");
+      if (!slug || !tipo || !acao || !porque) return { error: "client_slug, tipo_otimizacao, acao_tomada e por_que_nao_deu_certo são obrigatórios" };
+
+      // Gera próximo ID sequencial
+      const prefix = slug.slice(0, 3).toUpperCase();
+      const year = new Date().getFullYear();
+      const { data: last } = await db()
+        .from("failed_optimizations")
+        .select("id")
+        .eq("client_slug", slug)
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const lastNum = last ? parseInt(last.id.split("-").at(-1) ?? "0", 10) : 0;
+      const nextId = `${prefix}-${year}-${String(lastNum + 1).padStart(3, "0")}`;
+
+      const entidade = entidadeId ? { id: entidadeId } : {};
+      const { error } = await db()
+        .from("failed_optimizations")
+        .insert({
+          id: nextId,
+          client_slug: slug,
+          account_id: "registrado_via_nexus",
+          data_acao: new Date().toISOString().split("T")[0] ?? new Date().toISOString(),
+          tipo_otimizacao: tipo,
+          entidade,
+          acao_tomada: acao,
+          por_que_nao_deu_certo: porque,
+          status_atual: "registrado pelo operador",
+        });
+      if (error) throw error;
+      return {
+        recorded: true,
+        id: nextId,
+        client_slug: slug,
+        message: `Otimização fracassada registrada como ${nextId}. Os agents vão evitar repetir esse padrão.`,
       };
     },
   },

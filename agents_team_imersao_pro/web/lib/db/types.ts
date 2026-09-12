@@ -845,6 +845,68 @@ export type Database = {
           },
         ]
       }
+      failed_optimizations: {
+        Row: {
+          id: string
+          client_slug: string
+          account_id: string
+          data_acao: string
+          tipo_otimizacao: string
+          padrao: string | null
+          severidade: string | null
+          status_atual: string | null
+          entidade: Json
+          acao_tomada: string | null
+          por_que_nao_deu_certo: string | null
+          recomendacao: string | null
+          custo_do_aprendizado: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          client_slug: string
+          account_id: string
+          data_acao: string
+          tipo_otimizacao: string
+          padrao?: string | null
+          severidade?: string | null
+          status_atual?: string | null
+          entidade?: Json
+          acao_tomada?: string | null
+          por_que_nao_deu_certo?: string | null
+          recomendacao?: string | null
+          custo_do_aprendizado?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_slug?: string
+          account_id?: string
+          data_acao?: string
+          tipo_otimizacao?: string
+          padrao?: string | null
+          severidade?: string | null
+          status_atual?: string | null
+          entidade?: Json
+          acao_tomada?: string | null
+          por_que_nao_deu_certo?: string | null
+          recomendacao?: string | null
+          custo_do_aprendizado?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "failed_optimizations_client_slug_fkey"
+            columns: ["client_slug"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
